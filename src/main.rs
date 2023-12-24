@@ -17,7 +17,10 @@ enum Direction {
 }
 
 impl Direction {
-    fn can_descend_slope(&self, slope: char) -> bool {
+    fn can_descend_slope(&self, slope: char, enable_slopes: bool) -> bool {
+        if !enable_slopes {
+            return true;
+        }
         match self {
             Direction::Up => slope != SLOPE_DOWN,
             Direction::Down => slope != SLOPE_UP,
@@ -49,67 +52,83 @@ fn get_start(matrix: &DMatrix<char>) -> Option<(usize, usize)> {
     None
 }
 
-fn longest_path(matrix: &DMatrix<char>, current: (usize, usize), visited: HashSet<(usize, usize)>) -> Option<usize> {
+fn explore_paths(matrix: &DMatrix<char>, current: (usize, usize), visited: HashSet<(usize, usize)>, enable_slopes: bool) -> Option<usize> {
+    let neighbors = HashMap::from([
+        (Direction::Up, (current.0 as i32 - 1, current.1 as i32)), 
+        (Direction::Down, (current.0 as i32 + 1, current.1 as i32)), 
+        (Direction::Left, (current.0 as i32, current.1 as i32 - 1)), 
+        (Direction::Right, (current.0 as i32, current.1 as i32 + 1))
+    ]);
+    let mut longest: Option<usize> = None;
+    for (direction, neighbor_i32) in neighbors {
+        if neighbor_i32.0 < 0 || neighbor_i32.0 > matrix.nrows() as i32 - 1 || neighbor_i32.1 < 0 || neighbor_i32.1 > matrix.ncols() as i32 - 1 {
+            continue;
+        }
+        let neighbor_usize = (neighbor_i32.0 as usize, neighbor_i32.1 as usize);
+        let neighbor = matrix[neighbor_usize];
+        if neighbor != FOREST && direction.can_descend_slope(neighbor, enable_slopes) && !visited.contains(&neighbor_usize) {
+            if let Some(n) = longest_path(matrix, neighbor_usize, visited.clone(), enable_slopes) {
+                longest = Some(longest.unwrap_or(0).max(n));
+            }
+        }
+    }
+    if let Some(longest) = longest {
+        return Some(longest + 1);
+    }
+    None
+}
+
+fn longest_path(matrix: &DMatrix<char>, current: (usize, usize), visited: HashSet<(usize, usize)>, enable_slopes: bool) -> Option<usize> {
     if current.0 == matrix.nrows() - 1 {
         return Some(0);
     }
     let mut visited = visited;
     visited.insert(current);
+    if !enable_slopes {
+       return explore_paths(matrix, current, visited, enable_slopes);
+    }
     match matrix[current] {
         SLOPE_UP => {
-            if let Some(n) = longest_path(matrix, (current.0 - 1, current.1), visited.clone()) {
+            if let Some(n) = longest_path(matrix, (current.0 - 1, current.1), visited.clone(), enable_slopes) {
                 return Some(n + 1);
             }
         }
         SLOPE_DOWN => {
-            if let Some(n) = longest_path(matrix, (current.0 + 1, current.1), visited.clone()) {
+            if let Some(n) = longest_path(matrix, (current.0 + 1, current.1), visited.clone(), enable_slopes) {
                 return Some(n + 1);
             }
         }
         SLOPE_LEFT => {
-            if let Some(n) = longest_path(matrix, (current.0, current.1 - 1), visited.clone()) {
+            if let Some(n) = longest_path(matrix, (current.0, current.1 - 1), visited.clone(), enable_slopes) {
                 return Some(n + 1);
             }
         }
         SLOPE_RIGHT => {
-            if let Some(n) =longest_path(matrix, (current.0, current.1 + 1), visited.clone()) {
+            if let Some(n) = longest_path(matrix, (current.0, current.1 + 1), visited.clone(), enable_slopes) {
                 return Some(n + 1);
             }
         }
-        _ => {
-            let neighbors = HashMap::from([
-                (Direction::Up, (current.0 as i32 - 1, current.1 as i32)), 
-                (Direction::Down, (current.0 as i32 + 1, current.1 as i32)), 
-                (Direction::Left, (current.0 as i32, current.1 as i32 - 1)), 
-                (Direction::Right, (current.0 as i32, current.1 as i32 + 1))
-            ]);
-            let mut longest: Option<usize> = None;
-            for (direction, neighbor_i32) in neighbors {
-                if neighbor_i32.0 < 0 || neighbor_i32.0 > matrix.nrows() as i32 - 1 || neighbor_i32.1 < 0 || neighbor_i32.1 > matrix.ncols() as i32 - 1 {
-                    continue;
-                }
-                let neighbor_usize = (neighbor_i32.0 as usize, neighbor_i32.1 as usize);
-                let neighbor = matrix[neighbor_usize];
-                if neighbor != FOREST && direction.can_descend_slope(neighbor) && !visited.contains(&neighbor_usize) {
-                    if let Some(n) = longest_path(matrix, neighbor_usize, visited.clone()) {
-                        longest = Some(longest.unwrap_or(0).max(n));
-                    }
-                }
-            }
-            if let Some(longest) = longest {
-                return Some(longest + 1)
-            }
-        }
+        _ => return explore_paths(matrix, current, visited, enable_slopes)
     }
     None
 }
 
-fn solution(file: &str) -> usize {
+fn solution(file: &str, enable_slopes: bool) -> usize {
     let matrix = get_matrix(file);
-    longest_path(&matrix, get_start(&matrix).expect("First row does not contain a path"), HashSet::new()).expect("No path found")
+    longest_path(&matrix, get_start(&matrix).expect("First row does not contain a path"), HashSet::new(), enable_slopes).expect("No path found")
+}
+
+fn without_slopes(file: &str) -> usize {
+    solution(file, true)
+}
+
+fn enable_slopes(file: &str) -> usize {
+    solution(file, false)
 }
 
 fn main() {
-    assert_eq!(solution("example.txt"), 94);
-    assert_eq!(solution("input.txt"), 2170);
+    assert_eq!(without_slopes("example.txt"), 94);
+    assert_eq!(without_slopes("input.txt"), 2170);
+    assert_eq!(enable_slopes("example.txt"), 154);
+    assert_eq!(enable_slopes("input.txt"), 0);
 }
