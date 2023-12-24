@@ -1,4 +1,4 @@
-use std::{io::{BufReader, BufRead}, fs::File, collections::HashSet};
+use std::{io::{BufReader, BufRead}, fs::File, collections::{HashSet, HashMap}};
 use nalgebra::DMatrix;
 
 const FOREST: char = '#';
@@ -7,6 +7,25 @@ const SLOPE_UP: char = '^';
 const SLOPE_DOWN: char = 'v';
 const SLOPE_LEFT: char = '<';
 const SLOPE_RIGHT: char = '>';
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum Direction {
+    Up,
+    Down,
+    Left,
+    Right
+}
+
+impl Direction {
+    fn can_descend_slope(&self, slope: char) -> bool {
+        match self {
+            Direction::Up => slope != SLOPE_DOWN,
+            Direction::Down => slope != SLOPE_UP,
+            Direction::Left => slope != SLOPE_RIGHT,
+            Direction::Right => slope != SLOPE_LEFT
+        }
+    }
+}
 
 fn get_matrix(file: &str) -> DMatrix<char> {
     let file = File::open(file).unwrap();
@@ -32,7 +51,7 @@ fn get_start(matrix: &DMatrix<char>) -> Option<(usize, usize)> {
 
 fn longest_path(matrix: &DMatrix<char>, current: (usize, usize), visited: HashSet<(usize, usize)>) -> Option<usize> {
     if current.0 == matrix.nrows() - 1 {
-        return Some(1);
+        return Some(0);
     }
     let mut visited = visited;
     visited.insert(current);
@@ -58,25 +77,26 @@ fn longest_path(matrix: &DMatrix<char>, current: (usize, usize), visited: HashSe
             }
         }
         _ => {
-            let neighbors: &[(i32, i32); 4] = &[
-                (current.0 as i32 - 1, current.1 as i32 ), 
-                (current.0 as i32 + 1, current.1 as i32), 
-                (current.0 as i32, current.1 as i32 - 1), 
-                (current.0 as i32, current.1 as i32 + 1)
-            ];
-            let mut longest = 0;
-            for neighbor in neighbors {
-                let neighbor_usize = (neighbor.0 as usize, neighbor.1 as usize);
-                if neighbor.0 > -1 && 
-                    neighbor_usize.0 < matrix.nrows() && 
-                    neighbor.1 > -1 && 
-                    neighbor_usize.1 < matrix.ncols() && 
-                    matrix[neighbor_usize] != FOREST && 
-                    !visited.contains(&neighbor_usize) {
-                        longest = longest.max(longest_path(matrix, neighbor_usize, visited.clone()).unwrap_or(0));
+            let neighbors = HashMap::from([
+                (Direction::Up, (current.0 as i32 - 1, current.1 as i32)), 
+                (Direction::Down, (current.0 as i32 + 1, current.1 as i32)), 
+                (Direction::Left, (current.0 as i32, current.1 as i32 - 1)), 
+                (Direction::Right, (current.0 as i32, current.1 as i32 + 1))
+            ]);
+            let mut longest: Option<usize> = None;
+            for (direction, neighbor_i32) in neighbors {
+                if neighbor_i32.0 < 0 || neighbor_i32.0 > matrix.nrows() as i32 - 1 || neighbor_i32.1 < 0 || neighbor_i32.1 > matrix.ncols() as i32 - 1 {
+                    continue;
+                }
+                let neighbor_usize = (neighbor_i32.0 as usize, neighbor_i32.1 as usize);
+                let neighbor = matrix[neighbor_usize];
+                if neighbor != FOREST && direction.can_descend_slope(neighbor) && !visited.contains(&neighbor_usize) {
+                    if let Some(n) = longest_path(matrix, neighbor_usize, visited.clone()) {
+                        longest = Some(longest.unwrap_or(0).max(n));
                     }
+                }
             }
-            if longest > 0 {
+            if let Some(longest) = longest {
                 return Some(longest + 1)
             }
         }
@@ -91,5 +111,5 @@ fn solution(file: &str) -> usize {
 
 fn main() {
     assert_eq!(solution("example.txt"), 94);
-    assert_eq!(solution("input.txt"), 0);
+    assert_eq!(solution("input.txt"), 2170);
 }
