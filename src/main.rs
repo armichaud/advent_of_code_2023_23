@@ -32,7 +32,7 @@ fn get_start(matrix: &DMatrix<char>) -> Option<(usize, usize)> {
 
 fn longest_path(matrix: &DMatrix<char>, current: (usize, usize), visited: HashSet<(usize, usize)>) -> Option<usize> {
     if current.0 == matrix.nrows() - 1 {
-        return Some(0);
+        return Some(1);
     }
     let mut visited = visited;
     visited.insert(current);
